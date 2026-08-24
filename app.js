@@ -237,6 +237,71 @@ function renderWeather(data) {
   renderPrecip(hourly, nowHourIdx);
   renderBestTime(hourly, nowHourIdx);
   renderReadability(cur, nowHourIdx, hourly);
+  applySkyBackground(cur, daily);
+}
+
+/* ---------- Sky background ---------- */
+
+const SKY_GRADIENTS = {
+  night: {
+    clear: 'linear-gradient(180deg, #0b1026 0%, #1b2645 60%, #2a3a5c 100%)',
+    cloudy: 'linear-gradient(180deg, #131a2b 0%, #263349 100%)',
+    rain: 'linear-gradient(180deg, #0d1420 0%, #232f3d 100%)',
+    storm: 'linear-gradient(180deg, #0a0a18 0%, #1e1b30 100%)',
+    snow: 'linear-gradient(180deg, #1a2438 0%, #33445c 100%)',
+    fog: 'linear-gradient(180deg, #171d29 0%, #303a48 100%)',
+  },
+  dawn: {
+    clear: 'linear-gradient(180deg, #2b2a5e 0%, #ff9a76 55%, #ffd59e 100%)',
+    cloudy: 'linear-gradient(180deg, #3a3a5c 0%, #8d8aa8 55%, #d8c9c2 100%)',
+    rain: 'linear-gradient(180deg, #34394f 0%, #6d7488 100%)',
+    storm: 'linear-gradient(180deg, #26263c 0%, #4a4560 100%)',
+    snow: 'linear-gradient(180deg, #3c4256 0%, #b9c3d6 100%)',
+    fog: 'linear-gradient(180deg, #3a3f4f 0%, #9098a4 100%)',
+  },
+  day: {
+    clear: 'linear-gradient(180deg, #4fa8ea 0%, #a9dcf7 60%, #eaf6ff 100%)',
+    cloudy: 'linear-gradient(180deg, #8ea3b8 0%, #c4d1dd 100%)',
+    rain: 'linear-gradient(180deg, #5c6b78 0%, #8b98a3 100%)',
+    storm: 'linear-gradient(180deg, #3d4250 0%, #6b7180 100%)',
+    snow: 'linear-gradient(180deg, #c9d9e8 0%, #f2f7fb 100%)',
+    fog: 'linear-gradient(180deg, #a9b3ba 0%, #d8dee2 100%)',
+  },
+  dusk: {
+    clear: 'linear-gradient(180deg, #202049 0%, #b3466b 55%, #ff9d6c 100%)',
+    cloudy: 'linear-gradient(180deg, #2c2c46 0%, #8a6f7c 55%, #cbb2a6 100%)',
+    rain: 'linear-gradient(180deg, #262c3c 0%, #545e6c 100%)',
+    storm: 'linear-gradient(180deg, #1c1a2e 0%, #423b52 100%)',
+    snow: 'linear-gradient(180deg, #2e3348 0%, #9aa8bd 100%)',
+    fog: 'linear-gradient(180deg, #2c303c 0%, #767e88 100%)',
+  },
+};
+
+function getSkyPeriod(cur, daily) {
+  const now = Date.now();
+  const sunrise = new Date(daily.sunrise[0]).getTime();
+  const sunset = new Date(daily.sunset[0]).getTime();
+  const twilightMs = 45 * 60 * 1000;
+  if (Math.abs(now - sunrise) < twilightMs) return 'dawn';
+  if (Math.abs(now - sunset) < twilightMs) return 'dusk';
+  return cur.is_day ? 'day' : 'night';
+}
+
+function conditionCategory(code) {
+  if ([0, 1].includes(code)) return 'clear';
+  if ([2, 3].includes(code)) return 'cloudy';
+  if ([45, 48].includes(code)) return 'fog';
+  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return 'rain';
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return 'snow';
+  if ([95, 96, 99].includes(code)) return 'storm';
+  return 'clear';
+}
+
+function applySkyBackground(cur, daily) {
+  const period = getSkyPeriod(cur, daily);
+  const condition = conditionCategory(cur.weather_code);
+  const gradient = (SKY_GRADIENTS[period] && SKY_GRADIENTS[period][condition]) || SKY_GRADIENTS.day.clear;
+  document.body.style.background = gradient;
 }
 
 function findCurrentHourIndex(timeArr) {
@@ -418,9 +483,10 @@ function renderLog() {
     row.className = 'log-entry';
     const dt = new Date(entry.timestamp);
     const notesHtml = entry.notes ? `<span class="le-notes">"${escapeHtml(entry.notes)}"</span>` : '';
+    const tempText = typeof entry.temp === 'number' ? `${fmtTemp(entry.temp)} (feels ${fmtTemp(entry.feelsLike)})` : '';
     row.innerHTML = `
       <div class="le-main">
-        <span class="le-time">${dt.toLocaleDateString()} ${dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+        <span class="le-time">${dt.toLocaleDateString()} ${dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${tempText ? ' · ' + tempText : ''}</span>
         <span>${describeEntry(entry)}</span>
         ${notesHtml}
       </div>

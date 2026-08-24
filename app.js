@@ -176,10 +176,9 @@ async function loadWeather() {
 }
 
 async function loadAlerts(lat, lon) {
-  const section = el('severeWeatherSection');
   const list = el('severeList');
-  section.classList.add('hidden');
-  list.innerHTML = '';
+  const noneMsg = '<div class="severe-empty">No upcoming severe weather alerts.</div>';
+  list.innerHTML = noneMsg;
   try {
     const res = await fetch(`https://api.weather.gov/alerts/active?point=${lat},${lon}`, {
       headers: { 'Accept': 'application/geo+json' },
@@ -191,6 +190,7 @@ async function loadAlerts(lat, lon) {
 
     severe.sort((a, b) => severityRank(b.properties.severity) - severityRank(a.properties.severity));
     const now = Date.now();
+    list.innerHTML = '';
     severe.forEach((f) => {
       const p = f.properties;
       const sevClass = 'severity-' + (p.severity || 'minor').toLowerCase();
@@ -209,9 +209,8 @@ async function loadAlerts(lat, lon) {
       item.innerHTML = `<span class="severe-title">${escapeHtml(p.event)}</span>${escapeHtml(p.headline || '')}<span class="severe-meta">${meta}</span>`;
       list.appendChild(item);
     });
-    section.classList.remove('hidden');
   } catch (e) {
-    // NWS unreachable or non-US location — silently skip, not a fatal error
+    // NWS unreachable or non-US location — leave the "no alerts" message in place
   }
 }
 function fmtDateTime(isoStr) {
@@ -651,11 +650,7 @@ function saveEntry(fields) {
     ...fields,
     ...snap,
   });
-  if (latestWeather) {
-    renderBestTime(latestWeather.hourly, findCurrentHourIndex(latestWeather.hourly.time));
-    renderWeekPlan(latestWeather.hourly);
-    renderReadability(latestWeather.current, findCurrentHourIndex(latestWeather.hourly.time), latestWeather.hourly);
-  }
+  refreshPredictions();
 }
 
 /* ---------- Event wiring ---------- */
@@ -798,6 +793,44 @@ el('clearLogBtn').addEventListener('click', () => {
     saveLog([]);
     renderLog();
   }
+});
+
+function refreshPredictions() {
+  if (!latestWeather) return;
+  const nowIdx = findCurrentHourIndex(latestWeather.hourly.time);
+  renderBestTime(latestWeather.hourly, nowIdx);
+  renderWeekPlan(latestWeather.hourly);
+  renderReadability(latestWeather.current, nowIdx, latestWeather.hourly);
+}
+
+function sampleLogEntries() {
+  const mk = (daysAgo, hour, fields, notes) => {
+    const d = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+    d.setHours(hour, 0, 0, 0);
+    return {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + daysAgo,
+      timestamp: d.toISOString(),
+      notes: notes || '',
+      ...fields,
+    };
+  };
+  return [
+    mk(10, 8, { tempRating: 'comfortable', humidityRating: 'comfortable', windRating: 'comfortable', sunRating: 'comfortable', precip: false, bugs: false, airQuality: false, temp: 22, feelsLike: 24, humidity: 55, wind: 10, uv: 3, precipProb: 5 }, 'Perfect morning at the park.'),
+    mk(9, 17, { tempRating: 'too_hot', humidityRating: 'too_humid', windRating: 'comfortable', sunRating: 'too_bright', precip: false, bugs: true, airQuality: false, temp: 31, feelsLike: 33, humidity: 80, wind: 8, uv: 7, precipProb: 10 }, 'Got sweaty and bugs were annoying.'),
+    mk(7, 9, { tempRating: 'comfortable', humidityRating: 'comfortable', windRating: 'comfortable', sunRating: 'comfortable', precip: false, bugs: false, airQuality: false, temp: 20, feelsLike: 22, humidity: 50, wind: 12, uv: 2, precipProb: 0 }, 'Cool breeze, ideal reading weather.'),
+    mk(6, 14, { tempRating: 'too_cold', humidityRating: 'too_dry', windRating: 'too_windy', sunRating: 'comfortable', precip: false, bugs: false, airQuality: false, temp: 12, feelsLike: 9, humidity: 35, wind: 28, uv: 4, precipProb: 15 }, 'Wind kept flipping pages.'),
+    mk(5, 7, { tempRating: 'comfortable', humidityRating: 'comfortable', windRating: 'comfortable', sunRating: 'too_shaded', precip: false, bugs: false, airQuality: false, temp: 19, feelsLike: 21, humidity: 58, wind: 9, uv: 1, precipProb: 0 }, 'A bit overcast but calm.'),
+    mk(4, 18, { tempRating: 'too_hot', humidityRating: 'too_humid', windRating: 'comfortable', sunRating: 'too_bright', precip: false, bugs: true, airQuality: false, temp: 30, feelsLike: 32, humidity: 85, wind: 6, uv: 8, precipProb: 20 }, 'Humidity was brutal.'),
+    mk(2, 8, { tempRating: 'comfortable', humidityRating: 'comfortable', windRating: 'comfortable', sunRating: 'comfortable', precip: false, bugs: false, airQuality: false, temp: 21, feelsLike: 23, humidity: 52, wind: 11, uv: 3, precipProb: 5 }, 'Great session, no complaints.'),
+    mk(1, 16, { tempRating: 'too_cold', humidityRating: 'comfortable', windRating: 'too_windy', sunRating: 'comfortable', precip: true, bugs: false, airQuality: false, temp: 13, feelsLike: 15, humidity: 48, wind: 25, uv: 5, precipProb: 30 }, 'Started drizzling, had to pack up.'),
+  ];
+}
+
+el('loadSampleBtn').addEventListener('click', () => {
+  const existing = loadLog();
+  saveLog([...sampleLogEntries(), ...existing]);
+  renderLog();
+  refreshPredictions();
 });
 
 document.addEventListener('click', (e) => {

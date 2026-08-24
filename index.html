@@ -7,7 +7,7 @@
 <title>Reading Weather</title>
 <meta name="description" content="Check current weather, precipitation, and severe weather alerts to find the best time to read outside.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📖</text></svg>">
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 <div class="app">
@@ -80,9 +80,9 @@
       <div class="hourly-precip" id="hourlyPrecip"></div>
     </section>
 
-    <section id="severeWeatherSection" class="severe-card hidden">
+    <section id="severeWeatherSection" class="severe-card">
       <div class="section-title">Severe Weather</div>
-      <div id="severeList" class="severe-list"></div>
+      <div id="severeList" class="severe-list"><div class="severe-empty">No upcoming severe weather alerts.</div></div>
     </section>
 
     <section class="best-time-card">
@@ -185,6 +185,7 @@
         <div class="log-actions">
           <button id="exportLogBtn" class="link-btn">Export JSON</button>
           <label class="link-btn file-label">Import JSON<input type="file" id="importLogInput" accept="application/json" hidden></label>
+          <button id="loadSampleBtn" class="link-btn">Load Sample History</button>
           <button id="clearLogBtn" class="link-btn danger">Clear all</button>
         </div>
       </div>
@@ -199,6 +200,6 @@
   </footer>
 
 </div>
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

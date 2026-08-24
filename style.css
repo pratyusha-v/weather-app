@@ -15,6 +15,8 @@
   --shadow: 0 4px 20px rgba(20, 40, 70, 0.12);
   --radius: 16px;
   --blur: blur(18px);
+  --sky-text: var(--text);
+  --sky-text-dim: var(--text-dim);
   color-scheme: light;
 }
 
@@ -45,13 +47,10 @@
 .search-bar button,
 .search-results,
 .status-msg,
-.current-card,
-.stat-card,
 .precip-card,
 .best-time-card,
 .log-card,
-.topbar-chip,
-.location-line {
+.topbar-chip {
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
   border: 1px solid var(--card-border);
@@ -232,26 +231,23 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding: 10px 14px;
-  margin-bottom: 12px;
-  border-radius: 12px;
-  background: var(--card-bg);
-  box-shadow: var(--shadow);
+  padding: 4px 4px 10px;
   font-weight: 600;
+  color: var(--sky-text);
+  transition: color 0.6s ease;
 }
 .updated-time {
   font-weight: 400;
   font-size: 0.78rem;
-  color: var(--text-dim);
+  color: var(--sky-text-dim);
 }
 
 .current-card {
-  background: var(--card-bg);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 22px 18px;
+  padding: 22px 18px 6px;
   text-align: center;
   margin-bottom: 12px;
+  color: var(--sky-text);
+  transition: color 0.6s ease;
 }
 .current-main {
   display: flex;
@@ -261,7 +257,7 @@ html, body {
 }
 .current-icon { font-size: 2.6rem; }
 .current-temp { font-size: 3.4rem; font-weight: 700; }
-.current-desc { color: var(--text-dim); margin-top: 2px; font-size: 1rem; }
+.current-desc { color: var(--sky-text-dim); margin-top: 2px; font-size: 1rem; }
 
 .readability-badge {
   display: inline-block;
@@ -284,13 +280,12 @@ html, body {
   margin-bottom: 12px;
 }
 .stat-card {
-  background: var(--card-bg);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
   padding: 12px 8px;
   text-align: center;
+  color: var(--sky-text);
+  transition: color 0.6s ease;
 }
-.stat-label { font-size: 0.72rem; color: var(--text-dim); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
+.stat-label { font-size: 0.72rem; color: var(--sky-text-dim); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
 .stat-value { font-size: 1.1rem; font-weight: 700; }
 
 .precip-card, .best-time-card, .log-card {
@@ -338,17 +333,20 @@ html, body {
 .section-title { font-weight: 700; margin-bottom: 10px; }
 .section-subtitle { font-size: 0.85rem; font-weight: 600; color: var(--text-dim); margin: 10px 0 6px; }
 
-.best-time-list { display: flex; flex-direction: column; gap: 8px; }
-.best-time-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.best-time-list, .week-plan-list { display: flex; flex-direction: column; gap: 8px; }
+.week-plan-list { margin-bottom: 4px; }
+.best-time-row, .week-row {
   padding: 10px 12px;
   border-radius: 10px;
   background: var(--bg);
   font-size: 0.9rem;
 }
-.best-time-row .tag {
+.best-time-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.best-time-row .tag, .week-row .tag {
   font-size: 0.75rem;
   font-weight: 700;
   padding: 3px 9px;
@@ -357,6 +355,21 @@ html, body {
 .tag.ideal { background: var(--good-bg); color: var(--good); }
 .tag.ok { background: var(--warn-bg); color: var(--warn); }
 .tag.poor { background: var(--bad-bg); color: var(--bad); }
+
+.factor-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+.factor-chip {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+.factor-chip.good { background: var(--good-bg); color: var(--good); }
+.factor-chip.bad { background: var(--bad-bg); color: var(--bad); }
 
 .model-note {
   font-size: 0.78rem;

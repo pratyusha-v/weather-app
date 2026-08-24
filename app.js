@@ -160,7 +160,7 @@ async function loadWeather() {
     + '&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,is_day'
     + '&hourly=temperature_2m,apparent_temperature,precipitation_probability,relative_humidity_2m,wind_speed_10m,uv_index,weather_code'
     + '&daily=sunrise,sunset,uv_index_max,precipitation_probability_max'
-    + '&temperature_unit=celsius&wind_speed_unit=kmh&precipitation_unit=mm&timezone=auto&forecast_days=2';
+    + '&temperature_unit=celsius&wind_speed_unit=kmh&precipitation_unit=mm&timezone=auto&forecast_days=7';
 
   try {
     const res = await fetch(url);
@@ -236,44 +236,45 @@ function renderWeather(data) {
 
   renderPrecip(hourly, nowHourIdx);
   renderBestTime(hourly, nowHourIdx);
+  renderWeekPlan(hourly);
   renderReadability(cur, nowHourIdx, hourly);
   applySkyBackground(cur, daily);
 }
 
 /* ---------- Sky background ---------- */
 
-const SKY_GRADIENTS = {
+const SKY_PALETTES = {
   night: {
-    clear: 'linear-gradient(180deg, #0b1026 0%, #1b2645 60%, #2a3a5c 100%)',
-    cloudy: 'linear-gradient(180deg, #131a2b 0%, #263349 100%)',
-    rain: 'linear-gradient(180deg, #0d1420 0%, #232f3d 100%)',
-    storm: 'linear-gradient(180deg, #0a0a18 0%, #1e1b30 100%)',
-    snow: 'linear-gradient(180deg, #1a2438 0%, #33445c 100%)',
-    fog: 'linear-gradient(180deg, #171d29 0%, #303a48 100%)',
+    clear: ['#0b1026', '#1b2645', '#2a3a5c'],
+    cloudy: ['#131a2b', '#263349'],
+    rain: ['#0d1420', '#232f3d'],
+    storm: ['#0a0a18', '#1e1b30'],
+    snow: ['#1a2438', '#33445c'],
+    fog: ['#171d29', '#303a48'],
   },
   dawn: {
-    clear: 'linear-gradient(180deg, #2b2a5e 0%, #ff9a76 55%, #ffd59e 100%)',
-    cloudy: 'linear-gradient(180deg, #3a3a5c 0%, #8d8aa8 55%, #d8c9c2 100%)',
-    rain: 'linear-gradient(180deg, #34394f 0%, #6d7488 100%)',
-    storm: 'linear-gradient(180deg, #26263c 0%, #4a4560 100%)',
-    snow: 'linear-gradient(180deg, #3c4256 0%, #b9c3d6 100%)',
-    fog: 'linear-gradient(180deg, #3a3f4f 0%, #9098a4 100%)',
+    clear: ['#2b2a5e', '#ff9a76', '#ffd59e'],
+    cloudy: ['#3a3a5c', '#8d8aa8', '#d8c9c2'],
+    rain: ['#34394f', '#6d7488'],
+    storm: ['#26263c', '#4a4560'],
+    snow: ['#3c4256', '#b9c3d6'],
+    fog: ['#3a3f4f', '#9098a4'],
   },
   day: {
-    clear: 'linear-gradient(180deg, #4fa8ea 0%, #a9dcf7 60%, #eaf6ff 100%)',
-    cloudy: 'linear-gradient(180deg, #8ea3b8 0%, #c4d1dd 100%)',
-    rain: 'linear-gradient(180deg, #5c6b78 0%, #8b98a3 100%)',
-    storm: 'linear-gradient(180deg, #3d4250 0%, #6b7180 100%)',
-    snow: 'linear-gradient(180deg, #c9d9e8 0%, #f2f7fb 100%)',
-    fog: 'linear-gradient(180deg, #a9b3ba 0%, #d8dee2 100%)',
+    clear: ['#4fa8ea', '#a9dcf7', '#eaf6ff'],
+    cloudy: ['#8ea3b8', '#c4d1dd'],
+    rain: ['#5c6b78', '#8b98a3'],
+    storm: ['#3d4250', '#6b7180'],
+    snow: ['#c9d9e8', '#f2f7fb'],
+    fog: ['#a9b3ba', '#d8dee2'],
   },
   dusk: {
-    clear: 'linear-gradient(180deg, #202049 0%, #b3466b 55%, #ff9d6c 100%)',
-    cloudy: 'linear-gradient(180deg, #2c2c46 0%, #8a6f7c 55%, #cbb2a6 100%)',
-    rain: 'linear-gradient(180deg, #262c3c 0%, #545e6c 100%)',
-    storm: 'linear-gradient(180deg, #1c1a2e 0%, #423b52 100%)',
-    snow: 'linear-gradient(180deg, #2e3348 0%, #9aa8bd 100%)',
-    fog: 'linear-gradient(180deg, #2c303c 0%, #767e88 100%)',
+    clear: ['#202049', '#b3466b', '#ff9d6c'],
+    cloudy: ['#2c2c46', '#8a6f7c', '#cbb2a6'],
+    rain: ['#262c3c', '#545e6c'],
+    storm: ['#1c1a2e', '#423b52'],
+    snow: ['#2e3348', '#9aa8bd'],
+    fog: ['#2c303c', '#767e88'],
   },
 };
 
@@ -297,11 +298,35 @@ function conditionCategory(code) {
   return 'clear';
 }
 
+function gradientCss(colors) {
+  if (colors.length === 2) return `linear-gradient(180deg, ${colors[0]} 0%, ${colors[1]} 100%)`;
+  return `linear-gradient(180deg, ${colors[0]} 0%, ${colors[1]} 55%, ${colors[2]} 100%)`;
+}
+
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function relativeLuminance([r, g, b]) {
+  const srgb = [r, g, b].map((v) => {
+    v /= 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+}
+
 function applySkyBackground(cur, daily) {
   const period = getSkyPeriod(cur, daily);
   const condition = conditionCategory(cur.weather_code);
-  const gradient = (SKY_GRADIENTS[period] && SKY_GRADIENTS[period][condition]) || SKY_GRADIENTS.day.clear;
-  document.body.style.background = gradient;
+  const colors = (SKY_PALETTES[period] && SKY_PALETTES[period][condition]) || SKY_PALETTES.day.clear;
+  document.body.style.background = gradientCss(colors);
+
+  const avgRgb = [0, 1, 2].map((ci) => colors.reduce((sum, c) => sum + hexToRgb(c)[ci], 0) / colors.length);
+  const isLight = relativeLuminance(avgRgb) > 0.5;
+  const root = document.documentElement.style;
+  root.setProperty('--sky-text', isLight ? '#12202e' : '#ffffff');
+  root.setProperty('--sky-text-dim', isLight ? 'rgba(18, 32, 46, 0.72)' : 'rgba(255, 255, 255, 0.8)');
 }
 
 function findCurrentHourIndex(timeArr) {
@@ -391,6 +416,51 @@ function scoreToLabel(score) {
   return { tag: 'poor', text: 'Not great for reading' };
 }
 
+/* ---------- Factor chips (why / why not) ---------- */
+
+const GOOD_LABELS = { feelsLike: 'Ideal Temp', humidity: 'Comfortable Humidity', uv: 'Mild Sun' };
+const BAD_LABELS = {
+  feelsLike: { low: 'Cold', high: 'Hot' },
+  humidity: { low: 'Low Humidity', high: 'High Humidity' },
+  uv: { low: 'Low UV', high: 'Strong Sun' },
+};
+
+function rangeChip(kind, value, bounds) {
+  if (value === null || value === undefined || Number.isNaN(value)) return null;
+  if (value >= bounds.min && value <= bounds.max) return { tone: 'good', text: GOOD_LABELS[kind] };
+  const dir = value < bounds.min ? 'low' : 'high';
+  return { tone: 'bad', text: BAD_LABELS[kind][dir] };
+}
+
+function windChip(value, bounds) {
+  if (value === null || value === undefined || Number.isNaN(value)) return null;
+  if (value > bounds.max) return { tone: 'bad', text: 'Windy' };
+  return { tone: 'good', text: 'No Wind' };
+}
+
+function precipChip(precipPct) {
+  if (precipPct >= 50) return { tone: 'bad', text: 'High Precip Risk' };
+  if (precipPct >= 25) return { tone: 'bad', text: 'Chance of Rain' };
+  if (precipPct <= 5) return { tone: 'good', text: 'Dry' };
+  return null;
+}
+
+function buildFactorChips(ranges, feelsLikeC, humidity, windKmh, uv, precipPct) {
+  const chips = [
+    rangeChip('feelsLike', feelsLikeC, ranges.feelsLike || GENERIC_BOUNDS.feelsLike),
+    rangeChip('humidity', humidity, ranges.humidity || GENERIC_BOUNDS.humidity),
+    windChip(windKmh, ranges.wind || GENERIC_BOUNDS.wind),
+    rangeChip('uv', uv, ranges.uv || GENERIC_BOUNDS.uv),
+    precipChip(precipPct),
+  ].filter(Boolean);
+  chips.sort((a, b) => (a.tone === 'bad' ? 0 : 1) - (b.tone === 'bad' ? 0 : 1));
+  return chips.slice(0, 3);
+}
+
+function chipsHtml(chips) {
+  return chips.map((c) => `<span class="factor-chip ${c.tone}">${c.text}</span>`).join('');
+}
+
 function renderReadability(cur, nowIdx, hourly) {
   const ranges = buildFactorRanges(loadLog());
   const precipPct = hourly.precipitation_probability[nowIdx];
@@ -412,14 +482,17 @@ function renderBestTime(hourly, nowIdx) {
     const precipPct = hourly.precipitation_probability[i];
     const uv = hourly.uv_index ? hourly.uv_index[i] : 0;
     const score = computeReadScore(ranges, hourly.apparent_temperature[i], hourly.relative_humidity_2m[i], hourly.wind_speed_10m[i], uv, precipPct);
-    rows.push({ time: hourly.time[i], score });
+    const chips = buildFactorChips(ranges, hourly.apparent_temperature[i], hourly.relative_humidity_2m[i], hourly.wind_speed_10m[i], uv, precipPct);
+    rows.push({ time: hourly.time[i], score, chips });
   }
   rows.sort((a, b) => b.score - a.score);
   rows.slice(0, 4).sort((a, b) => new Date(a.time) - new Date(b.time)).forEach((r) => {
     const { tag, text } = scoreToLabel(r.score);
     const row = document.createElement('div');
     row.className = 'best-time-row';
-    row.innerHTML = `<span>${fmtHour(r.time)}</span><span class="tag ${tag}">${text} · ${r.score}</span>`;
+    row.innerHTML = `
+      <div class="best-time-top"><span>${fmtHour(r.time)}</span><span class="tag ${tag}">${text} · ${r.score}</span></div>
+      <div class="factor-chips">${chipsHtml(r.chips)}</div>`;
     list.appendChild(row);
   });
 
@@ -433,6 +506,41 @@ function renderBestTime(hourly, nowIdx) {
   } else {
     note.textContent = 'Using general comfort guidelines. Rate a few logged sessions as "comfortable" for each factor to start personalizing predictions.';
   }
+}
+
+function renderWeekPlan(hourly) {
+  const ranges = buildFactorRanges(loadLog());
+  const container = el('weekPlanList');
+  container.innerHTML = '';
+
+  const days = {};
+  hourly.time.forEach((t, i) => {
+    const dayKey = t.slice(0, 10);
+    (days[dayKey] = days[dayKey] || []).push(i);
+  });
+
+  Object.keys(days).sort().slice(0, 7).forEach((dayKey, di) => {
+    let best = null;
+    days[dayKey].forEach((i) => {
+      const hour = new Date(hourly.time[i]).getHours();
+      if (hour < 7 || hour > 20) return; // typical waking reading hours
+      const precipPct = hourly.precipitation_probability[i];
+      const uv = hourly.uv_index ? hourly.uv_index[i] : 0;
+      const score = computeReadScore(ranges, hourly.apparent_temperature[i], hourly.relative_humidity_2m[i], hourly.wind_speed_10m[i], uv, precipPct);
+      if (!best || score > best.score) {
+        best = { time: hourly.time[i], score, chips: buildFactorChips(ranges, hourly.apparent_temperature[i], hourly.relative_humidity_2m[i], hourly.wind_speed_10m[i], uv, precipPct) };
+      }
+    });
+    if (!best) return;
+    const dayLabel = di === 0 ? 'Today' : new Date(dayKey + 'T12:00:00').toLocaleDateString([], { weekday: 'short', month: 'numeric', day: 'numeric' });
+    const { tag } = scoreToLabel(best.score);
+    const row = document.createElement('div');
+    row.className = 'week-row';
+    row.innerHTML = `
+      <div class="best-time-top"><span>${dayLabel} · ${fmtHour(best.time)}</span><span class="tag ${tag}">${best.score}</span></div>
+      <div class="factor-chips">${chipsHtml(best.chips)}</div>`;
+    container.appendChild(row);
+  });
 }
 
 /* ---------- Logging UI ---------- */
@@ -512,6 +620,7 @@ function saveEntry(fields) {
   });
   if (latestWeather) {
     renderBestTime(latestWeather.hourly, findCurrentHourIndex(latestWeather.hourly.time));
+    renderWeekPlan(latestWeather.hourly);
     renderReadability(latestWeather.current, findCurrentHourIndex(latestWeather.hourly.time), latestWeather.hourly);
   }
 }

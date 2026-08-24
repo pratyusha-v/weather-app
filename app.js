@@ -2,14 +2,13 @@
 
 /* ---------- State ---------- */
 
-const STORAGE_KEY = 'reading-weather-log-v1';
+const STORAGE_KEY = 'reading-weather-log-v2';
 const LOC_KEY = 'reading-weather-last-loc-v1';
 const UNIT_KEY = 'reading-weather-unit-v1';
 
 let unit = localStorage.getItem(UNIT_KEY) || 'F'; // 'F' or 'C'
 let currentLocation = null; // {lat, lon, label}
 let latestWeather = null;   // last fetched Open-Meteo payload
-let pendingReasons = [];
 
 /* ---------- Elements ---------- */
 
@@ -280,57 +279,42 @@ function renderPrecip(hourly, nowIdx) {
 
 /* ---------- Reading-comfort model ---------- */
 
-function getComfortProfile() {
-  const log = loadLog();
-  const liked = log.filter((e) => e.mood === 'good');
-  const disliked = log.filter((e) => e.mood === 'bad');
+// Generic "comfortable" bounds used per-factor until enough of the user's own
+// log entries rate that specific factor as comfortable (min 3 needed).
+const GENERIC_BOUNDS = {
+  feelsLike: { min: 18, max: 26 },
+  humidity: { min: 40, max: 65 },
+  wind: { min: 0, max: 20 },
+  uv: { min: 0, max: 6 },
+};
 
-  if (liked.length < 3) return null; // not enough data yet, use generic heuristic
-
-  const stat = (arr, key) => {
-    const vals = arr.map((e) => e[key]).filter((v) => typeof v === 'number');
-    if (vals.length === 0) return null;
-    return { min: Math.min(...vals), max: Math.max(...vals), avg: vals.reduce((a, b) => a + b, 0) / vals.length };
+function buildFactorRanges(log) {
+  const rangeFor = (predicate, key) => {
+    const vals = log.filter(predicate).map((e) => e[key]).filter((v) => typeof v === 'number');
+    if (vals.length < 3) return null;
+    return { min: Math.min(...vals), max: Math.max(...vals) };
   };
-
   return {
-    feelsLike: stat(liked, 'feelsLike'),
-    humidity: stat(liked, 'humidity'),
-    wind: stat(liked, 'wind'),
-    uv: stat(liked, 'uv'),
-    dislikedCount: disliked.length,
-    likedCount: liked.length,
+    feelsLike: rangeFor((e) => e.tempRating === 'comfortable', 'feelsLike'),
+    humidity: rangeFor((e) => e.humidityRating === 'comfortable', 'humidity'),
+    wind: rangeFor((e) => e.windRating === 'comfortable', 'wind'),
+    uv: rangeFor((e) => e.sunRating === 'comfortable', 'uv'),
   };
 }
 
-// Generic heuristic used until enough personal log data exists.
-function genericScore(feelsLikeC, humidity, windKmh, uv, precipPct) {
+function computeReadScore(ranges, feelsLikeC, humidity, windKmh, uv, precipPct) {
   let score = 100;
-  if (feelsLikeC < 15 || feelsLikeC > 29) score -= 35;
-  else if (feelsLikeC < 18 || feelsLikeC > 26) score -= 12;
-  if (humidity > 80) score -= 20;
-  else if (humidity > 65) score -= 8;
-  if (windKmh > 30) score -= 25;
-  else if (windKmh > 20) score -= 10;
-  if (uv > 8) score -= 15;
-  else if (uv > 6) score -= 6;
-  if (precipPct >= 50) score -= 40;
-  else if (precipPct >= 25) score -= 15;
-  return Math.max(0, score);
-}
-
-function personalScore(profile, feelsLikeC, humidity, windKmh, uv, precipPct) {
-  let score = 100;
-  const penalize = (val, range, weight) => {
-    if (!range || val === null || val === undefined) return 0;
-    if (val >= range.min && val <= range.max) return 0;
-    const dist = val < range.min ? range.min - val : val - range.max;
+  const penalize = (val, range, generic, weight) => {
+    if (val === null || val === undefined || Number.isNaN(val)) return 0;
+    const bounds = range || generic;
+    if (val >= bounds.min && val <= bounds.max) return 0;
+    const dist = val < bounds.min ? bounds.min - val : val - bounds.max;
     return Math.min(weight, dist * (weight / 10));
   };
-  score -= penalize(feelsLikeC, profile.feelsLike, 40);
-  score -= penalize(humidity, profile.humidity, 20);
-  score -= penalize(windKmh, profile.wind, 20);
-  score -= penalize(uv, profile.uv, 12);
+  score -= penalize(feelsLikeC, ranges.feelsLike, GENERIC_BOUNDS.feelsLike, 40);
+  score -= penalize(humidity, ranges.humidity, GENERIC_BOUNDS.humidity, 20);
+  score -= penalize(windKmh, ranges.wind, GENERIC_BOUNDS.wind, 20);
+  score -= penalize(uv, ranges.uv, GENERIC_BOUNDS.uv, 12);
   if (precipPct >= 50) score -= 40;
   else if (precipPct >= 25) score -= 15;
   return Math.max(0, Math.round(score));
@@ -343,12 +327,10 @@ function scoreToLabel(score) {
 }
 
 function renderReadability(cur, nowIdx, hourly) {
-  const profile = getComfortProfile();
+  const ranges = buildFactorRanges(loadLog());
   const precipPct = hourly.precipitation_probability[nowIdx];
   const uv = hourly.uv_index ? hourly.uv_index[nowIdx] : 0;
-  const score = profile
-    ? personalScore(profile, cur.temperature_2m, cur.relative_humidity_2m, cur.wind_speed_10m, uv, precipPct)
-    : genericScore(cur.apparent_temperature, cur.relative_humidity_2m, cur.wind_speed_10m, uv, precipPct);
+  const score = computeReadScore(ranges, cur.apparent_temperature, cur.relative_humidity_2m, cur.wind_speed_10m, uv, precipPct);
   const { tag, text } = scoreToLabel(score);
   const badge = el('readabilityBadge');
   badge.textContent = `${text} (${score}/100)`;
@@ -356,7 +338,7 @@ function renderReadability(cur, nowIdx, hourly) {
 }
 
 function renderBestTime(hourly, nowIdx) {
-  const profile = getComfortProfile();
+  const ranges = buildFactorRanges(loadLog());
   const list = el('bestTimeList');
   list.innerHTML = '';
   const end = Math.min(nowIdx + 12, hourly.time.length);
@@ -364,9 +346,7 @@ function renderBestTime(hourly, nowIdx) {
   for (let i = nowIdx; i < end; i++) {
     const precipPct = hourly.precipitation_probability[i];
     const uv = hourly.uv_index ? hourly.uv_index[i] : 0;
-    const score = profile
-      ? personalScore(profile, hourly.temperature_2m[i], hourly.relative_humidity_2m[i], hourly.wind_speed_10m[i], uv, precipPct)
-      : genericScore(hourly.apparent_temperature[i], hourly.relative_humidity_2m[i], hourly.wind_speed_10m[i], uv, precipPct);
+    const score = computeReadScore(ranges, hourly.apparent_temperature[i], hourly.relative_humidity_2m[i], hourly.wind_speed_10m[i], uv, precipPct);
     rows.push({ time: hourly.time[i], score });
   }
   rows.sort((a, b) => b.score - a.score);
@@ -379,12 +359,14 @@ function renderBestTime(hourly, nowIdx) {
   });
 
   const note = el('modelNote');
-  if (profile) {
-    note.textContent = `Personalized using ${profile.likedCount} liked and ${profile.dislikedCount} disliked log entries.`;
+  const factorLabels = { feelsLike: 'temperature', humidity: 'humidity', wind: 'wind', uv: 'sun/UV' };
+  const personalized = Object.keys(ranges).filter((k) => ranges[k]).map((k) => factorLabels[k]);
+  if (personalized.length > 0) {
+    const remaining = Object.keys(ranges).filter((k) => !ranges[k]).map((k) => factorLabels[k]);
+    note.textContent = `Personalized for ${personalized.join(', ')} based on your logged sessions.`
+      + (remaining.length ? ` Still using general guidelines for ${remaining.join(', ')}.` : '');
   } else {
-    const log = loadLog();
-    const liked = log.filter((e) => e.mood === 'good').length;
-    note.textContent = `Using general comfort guidelines. Log ${3 - liked} more 👍 reading sessions to personalize predictions.`;
+    note.textContent = 'Using general comfort guidelines. Rate a few logged sessions as "comfortable" for each factor to start personalizing predictions.';
   }
 }
 
@@ -405,6 +387,23 @@ function currentConditionsSnapshot() {
   };
 }
 
+const TEMP_PHRASES = { too_cold: 'Felt too cold', comfortable: 'Temperature felt comfortable', too_hot: 'Felt too hot' };
+const HUMIDITY_PHRASES = { too_dry: 'Air felt too dry', comfortable: 'Humidity felt comfortable', too_humid: 'Felt too humid' };
+const WIND_PHRASES = { too_still: 'Air was too still', comfortable: 'Wind felt comfortable', too_windy: 'Too windy' };
+const SUN_PHRASES = { too_shaded: 'Too shaded', comfortable: 'Sun felt comfortable', too_bright: 'Too much sun or glare' };
+
+function describeEntry(entry) {
+  const phrases = [];
+  if (TEMP_PHRASES[entry.tempRating]) phrases.push(TEMP_PHRASES[entry.tempRating]);
+  if (HUMIDITY_PHRASES[entry.humidityRating]) phrases.push(HUMIDITY_PHRASES[entry.humidityRating]);
+  if (WIND_PHRASES[entry.windRating]) phrases.push(WIND_PHRASES[entry.windRating]);
+  if (SUN_PHRASES[entry.sunRating]) phrases.push(SUN_PHRASES[entry.sunRating]);
+  if (entry.precip) phrases.push('It rained or drizzled');
+  if (entry.bugs) phrases.push('Bugs were bothersome');
+  if (entry.airQuality) phrases.push('Air quality was poor');
+  return phrases.join(' · ');
+}
+
 function renderLog() {
   const log = loadLog();
   el('logCount').textContent = log.length;
@@ -418,16 +417,14 @@ function renderLog() {
     const row = document.createElement('div');
     row.className = 'log-entry';
     const dt = new Date(entry.timestamp);
-    const reasonsText = entry.reasons && entry.reasons.length ? entry.reasons.join(', ') : '';
+    const notesHtml = entry.notes ? `<span class="le-notes">"${escapeHtml(entry.notes)}"</span>` : '';
     row.innerHTML = `
       <div class="le-main">
         <span class="le-time">${dt.toLocaleDateString()} ${dt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
-        <span>${fmtTemp(entry.feelsLike)} feels · ${Math.round(entry.humidity)}% hum · ${fmtWind(entry.wind)}${reasonsText ? ' · ' + reasonsText : ''}</span>
+        <span>${describeEntry(entry)}</span>
+        ${notesHtml}
       </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span class="le-mood">${entry.mood === 'good' ? '👍' : '👎'}</span>
-        <button class="le-del" data-id="${entry.id}" aria-label="Delete entry">✕</button>
-      </div>`;
+      <button class="le-del" data-id="${entry.id}" aria-label="Delete entry">✕</button>`;
     list.appendChild(row);
   });
   list.querySelectorAll('.le-del').forEach((btn) => {
@@ -435,7 +432,7 @@ function renderLog() {
   });
 }
 
-function saveEntry(mood, reasons) {
+function saveEntry(fields) {
   const snap = currentConditionsSnapshot();
   if (!snap) {
     alert('Weather data not loaded yet.');
@@ -444,8 +441,7 @@ function saveEntry(mood, reasons) {
   addLogEntry({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     timestamp: new Date().toISOString(),
-    mood,
-    reasons: reasons || [],
+    ...fields,
     ...snap,
   });
   if (latestWeather) {
@@ -488,25 +484,57 @@ geoBtn.addEventListener('click', useGeolocation);
 unitToggle.addEventListener('click', () => {
   unit = unit === 'F' ? 'C' : 'F';
   localStorage.setItem(UNIT_KEY, unit);
-  unitToggle.textContent = '°' + unit;
+  unitToggle.setAttribute('aria-checked', unit === 'C' ? 'true' : 'false');
   if (latestWeather) renderWeather(latestWeather);
   renderLog();
 });
 
-el('logGoodBtn').addEventListener('click', () => {
-  el('reasonPanel').classList.add('hidden');
-  saveEntry('good', []);
+/* Session-form: single-select "pill" behavior for scale/yes-no radio groups */
+document.querySelectorAll('.scale-options, .yesno-options').forEach((group) => {
+  group.querySelectorAll('input[type=radio]').forEach((input) => {
+    input.addEventListener('change', () => {
+      group.querySelectorAll('label').forEach((label) => label.classList.remove('selected'));
+      input.closest('label').classList.add('selected');
+    });
+  });
 });
 
-el('logBadBtn').addEventListener('click', () => {
-  el('reasonPanel').classList.remove('hidden');
-  el('reasonOptions').querySelectorAll('input[type=checkbox]').forEach((cb) => (cb.checked = false));
+function resetSessionForm() {
+  const form = el('sessionForm');
+  form.querySelectorAll('input[type=radio]').forEach((input) => (input.checked = false));
+  form.querySelectorAll('label.selected').forEach((label) => label.classList.remove('selected'));
+  el('sessionNotes').value = '';
+}
+
+el('addSessionBtn').addEventListener('click', () => {
+  const form = el('sessionForm');
+  const opening = form.classList.contains('hidden');
+  form.classList.toggle('hidden');
+  if (opening) form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 });
 
-el('submitReasonBtn').addEventListener('click', () => {
-  const reasons = Array.from(el('reasonOptions').querySelectorAll('input:checked')).map((cb) => cb.value);
-  saveEntry('bad', reasons);
-  el('reasonPanel').classList.add('hidden');
+el('submitSessionBtn').addEventListener('click', () => {
+  const getVal = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || null;
+  const tempRating = getVal('tempRating');
+  const humidityRating = getVal('humidityRating');
+  const windRating = getVal('windRating');
+  const sunRating = getVal('sunRating');
+  if (!tempRating || !humidityRating || !windRating || !sunRating) {
+    alert('Please answer temperature, humidity, wind, and sun/glare before saving.');
+    return;
+  }
+  saveEntry({
+    tempRating,
+    humidityRating,
+    windRating,
+    sunRating,
+    precip: getVal('precip') === 'yes',
+    bugs: getVal('bugs') === 'yes',
+    airQuality: getVal('airQuality') === 'yes',
+    notes: el('sessionNotes').value.trim(),
+  });
+  resetSessionForm();
+  el('sessionForm').classList.add('hidden');
 });
 
 el('exportLogBtn').addEventListener('click', () => {
@@ -560,7 +588,7 @@ document.addEventListener('click', (e) => {
 
 /* ---------- Init ---------- */
 
-unitToggle.textContent = '°' + unit;
+unitToggle.setAttribute('aria-checked', unit === 'C' ? 'true' : 'false');
 renderLog();
 
 const savedLoc = localStorage.getItem(LOC_KEY);

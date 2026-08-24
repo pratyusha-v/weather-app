@@ -13,7 +13,11 @@
 
   <header class="topbar">
     <div class="brand">📖 Reading Weather</div>
-    <button id="unitToggle" class="unit-toggle" aria-label="Toggle temperature units">°F</button>
+    <button id="unitToggle" class="unit-switch" role="switch" aria-checked="false" aria-label="Toggle temperature units">
+      <span class="unit-switch-option" data-unit="F">°F</span>
+      <span class="unit-switch-option" data-unit="C">°C</span>
+      <span class="unit-switch-knob"></span>
+    </button>
   </header>
 
   <form id="searchForm" class="search-bar" autocomplete="off">
@@ -87,24 +91,77 @@
     <section class="log-card">
       <div class="section-title">📓 Reading log</div>
       <p class="log-hint">Logging while you read helps predictions learn what conditions you actually enjoy.</p>
-      <div class="log-buttons">
-        <button id="logGoodBtn" class="log-btn good">👍 I'm reading now — feels good</button>
-        <button id="logBadBtn" class="log-btn bad">👎 I'm reading now — not great</button>
-      </div>
-      <div id="reasonPanel" class="reason-panel hidden">
-        <div class="section-subtitle">What's off? (select all that apply)</div>
-        <div class="reason-options" id="reasonOptions">
-          <label><input type="checkbox" value="too_hot"> Too hot</label>
-          <label><input type="checkbox" value="too_cold"> Too cold</label>
-          <label><input type="checkbox" value="too_windy"> Too windy</label>
-          <label><input type="checkbox" value="too_humid"> Too humid</label>
-          <label><input type="checkbox" value="too_sunny"> Too much sun / glare</label>
-          <label><input type="checkbox" value="bugs"> Bugs / insects</label>
-          <label><input type="checkbox" value="precip"> Rain / drizzle started</label>
-          <label><input type="checkbox" value="poor_air"> Poor air quality</label>
-          <label><input type="checkbox" value="other"> Other</label>
+      <button id="addSessionBtn" class="log-btn add">＋ Add reading session</button>
+
+      <div id="sessionForm" class="session-form hidden">
+        <p class="log-hint">Answer based on how conditions actually were during your session — this is a reflection, not a rating of the whole day.</p>
+
+        <div class="scale-group">
+          <div class="section-subtitle">Temperature</div>
+          <div class="scale-options" data-field="tempRating">
+            <label><input type="radio" name="tempRating" value="too_cold">Too cold</label>
+            <label><input type="radio" name="tempRating" value="comfortable">Comfortable</label>
+            <label><input type="radio" name="tempRating" value="too_hot">Too hot</label>
+          </div>
         </div>
-        <button id="submitReasonBtn" class="log-btn bad">Save entry</button>
+
+        <div class="scale-group">
+          <div class="section-subtitle">Humidity</div>
+          <div class="scale-options" data-field="humidityRating">
+            <label><input type="radio" name="humidityRating" value="too_dry">Too dry</label>
+            <label><input type="radio" name="humidityRating" value="comfortable">Comfortable</label>
+            <label><input type="radio" name="humidityRating" value="too_humid">Too humid</label>
+          </div>
+        </div>
+
+        <div class="scale-group">
+          <div class="section-subtitle">Wind</div>
+          <div class="scale-options" data-field="windRating">
+            <label><input type="radio" name="windRating" value="too_still">Too still</label>
+            <label><input type="radio" name="windRating" value="comfortable">Comfortable</label>
+            <label><input type="radio" name="windRating" value="too_windy">Too windy</label>
+          </div>
+        </div>
+
+        <div class="scale-group">
+          <div class="section-subtitle">Sun / glare</div>
+          <div class="scale-options" data-field="sunRating">
+            <label><input type="radio" name="sunRating" value="too_shaded">Too shaded</label>
+            <label><input type="radio" name="sunRating" value="comfortable">Comfortable</label>
+            <label><input type="radio" name="sunRating" value="too_bright">Too bright</label>
+          </div>
+        </div>
+
+        <div class="yesno-row">
+          <span>Did it rain or drizzle?</span>
+          <div class="yesno-options" data-field="precip">
+            <label><input type="radio" name="precip" value="yes">Yes</label>
+            <label><input type="radio" name="precip" value="no">No</label>
+          </div>
+        </div>
+
+        <div class="yesno-row">
+          <span>Bugs or insects bothersome?</span>
+          <div class="yesno-options" data-field="bugs">
+            <label><input type="radio" name="bugs" value="yes">Yes</label>
+            <label><input type="radio" name="bugs" value="no">No</label>
+          </div>
+        </div>
+
+        <div class="yesno-row">
+          <span>Air quality noticeably poor?</span>
+          <div class="yesno-options" data-field="airQuality">
+            <label><input type="radio" name="airQuality" value="yes">Yes</label>
+            <label><input type="radio" name="airQuality" value="no">No</label>
+          </div>
+        </div>
+
+        <div class="notes-group">
+          <div class="section-subtitle">Notes (optional)</div>
+          <textarea id="sessionNotes" rows="3" placeholder="Anything else worth remembering about this session…"></textarea>
+        </div>
+
+        <button id="submitSessionBtn" class="log-btn add">Save session</button>
       </div>
 
       <div class="log-history">

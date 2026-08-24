@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Reading Weather</title>
+<meta name="description" content="Check current weather, precipitation, and severe weather alerts to find the best time to read outside.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📖</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">📖 Reading Weather</div>
+    <button id="unitToggle" class="unit-toggle" aria-label="Toggle temperature units">°F</button>
+  </header>
+
+  <form id="searchForm" class="search-bar" autocomplete="off">
+    <input id="searchInput" type="text" placeholder="Search city or ZIP…" aria-label="Search location">
+    <button type="submit" aria-label="Search">🔍</button>
+    <button type="button" id="geoBtn" aria-label="Use my location">📍</button>
+  </form>
+  <div id="searchResults" class="search-results hidden"></div>
+
+  <div id="statusMsg" class="status-msg hidden"></div>
+
+  <div id="alertBanner" class="alert-banner hidden"></div>
+
+  <main id="mainContent" class="hidden">
+
+    <section class="location-line">
+      <span id="locationName">—</span>
+      <span id="updatedTime" class="updated-time"></span>
+    </section>
+
+    <section class="current-card">
+      <div class="current-main">
+        <div class="current-icon" id="currentIcon">☀️</div>
+        <div class="current-temp" id="currentTemp">--°</div>
+      </div>
+      <div class="current-desc" id="currentDesc">—</div>
+      <div class="readability-badge" id="readabilityBadge">Checking conditions…</div>
+    </section>
+
+    <section class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Feels like</div>
+        <div class="stat-value" id="feelsLike">--°</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Humidity</div>
+        <div class="stat-value" id="humidity">--%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Wind</div>
+        <div class="stat-value" id="wind">-- mph</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">UV Index</div>
+        <div class="stat-value" id="uvIndex">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Sunrise</div>
+        <div class="stat-value" id="sunrise">--:--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Sunset</div>
+        <div class="stat-value" id="sunset">--:--</div>
+      </div>
+    </section>
+
+    <section class="precip-card">
+      <div class="precip-header">
+        <span>☔ Umbrella check</span>
+        <span id="umbrellaVerdict" class="umbrella-verdict">—</span>
+      </div>
+      <div class="hourly-precip" id="hourlyPrecip"></div>
+    </section>
+
+    <section class="best-time-card">
+      <div class="section-title">🪑 Best time to read today</div>
+      <div id="bestTimeList" class="best-time-list"></div>
+      <div class="model-note" id="modelNote"></div>
+    </section>
+
+    <section class="log-card">
+      <div class="section-title">📓 Reading log</div>
+      <p class="log-hint">Logging while you read helps predictions learn what conditions you actually enjoy.</p>
+      <div class="log-buttons">
+        <button id="logGoodBtn" class="log-btn good">👍 I'm reading now — feels good</button>
+        <button id="logBadBtn" class="log-btn bad">👎 I'm reading now — not great</button>
+      </div>
+      <div id="reasonPanel" class="reason-panel hidden">
+        <div class="section-subtitle">What's off? (select all that apply)</div>
+        <div class="reason-options" id="reasonOptions">
+          <label><input type="checkbox" value="too_hot"> Too hot</label>
+          <label><input type="checkbox" value="too_cold"> Too cold</label>
+          <label><input type="checkbox" value="too_windy"> Too windy</label>
+          <label><input type="checkbox" value="too_humid"> Too humid</label>
+          <label><input type="checkbox" value="too_sunny"> Too much sun / glare</label>
+          <label><input type="checkbox" value="bugs"> Bugs / insects</label>
+          <label><input type="checkbox" value="precip"> Rain / drizzle started</label>
+          <label><input type="checkbox" value="poor_air"> Poor air quality</label>
+          <label><input type="checkbox" value="other"> Other</label>
+        </div>
+        <button id="submitReasonBtn" class="log-btn bad">Save entry</button>
+      </div>
+
+      <div class="log-history">
+        <div class="section-subtitle">History (<span id="logCount">0</span> entries)</div>
+        <div id="logList" class="log-list"></div>
+        <div class="log-actions">
+          <button id="exportLogBtn" class="link-btn">Export JSON</button>
+          <label class="link-btn file-label">Import JSON<input type="file" id="importLogInput" accept="application/json" hidden></label>
+          <button id="clearLogBtn" class="link-btn danger">Clear all</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    Weather: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> ·
+    Alerts: <a href="https://www.weather.gov/" target="_blank" rel="noopener">National Weather Service</a> (US only) ·
+    Data stored only in your browser.
+  </footer>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>

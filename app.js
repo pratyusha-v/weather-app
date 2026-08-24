@@ -18,7 +18,6 @@ const searchInput = el('searchInput');
 const searchResults = el('searchResults');
 const geoBtn = el('geoBtn');
 const statusMsg = el('statusMsg');
-const alertBanner = el('alertBanner');
 const mainContent = el('mainContent');
 const unitToggle = el('unitToggle');
 
@@ -177,26 +176,47 @@ async function loadWeather() {
 }
 
 async function loadAlerts(lat, lon) {
-  alertBanner.classList.add('hidden');
+  const section = el('severeWeatherSection');
+  const list = el('severeList');
+  section.classList.add('hidden');
+  list.innerHTML = '';
   try {
     const res = await fetch(`https://api.weather.gov/alerts/active?point=${lat},${lon}`, {
       headers: { 'Accept': 'application/geo+json' },
     });
     if (!res.ok) return; // likely outside US coverage
     const data = await res.json();
-    const features = data.features || [];
-    if (features.length === 0) return;
+    const severe = (data.features || []).filter((f) => severityRank(f.properties.severity) >= severityRank('Moderate'));
+    if (severe.length === 0) return;
 
-    features.sort((a, b) => severityRank(b.properties.severity) - severityRank(a.properties.severity));
-    const top = features[0].properties;
-    const sevClass = 'severity-' + (top.severity || 'minor').toLowerCase();
-    alertBanner.className = 'alert-banner ' + sevClass;
-    const extra = features.length > 1 ? ` (+${features.length - 1} more alert${features.length > 2 ? 's' : ''})` : '';
-    alertBanner.innerHTML = `<span class="alert-title">⚠️ ${escapeHtml(top.event)}${extra}</span>${escapeHtml(top.headline || '')}`;
-    alertBanner.classList.remove('hidden');
+    severe.sort((a, b) => severityRank(b.properties.severity) - severityRank(a.properties.severity));
+    const now = Date.now();
+    severe.forEach((f) => {
+      const p = f.properties;
+      const sevClass = 'severity-' + (p.severity || 'minor').toLowerCase();
+      const onset = p.onset ? new Date(p.onset).getTime() : null;
+      const expires = p.expires ? new Date(p.expires).getTime() : null;
+      let meta = '';
+      if (onset && onset > now) {
+        meta = `Upcoming — starts ${fmtDateTime(p.onset)}`;
+      } else if (expires) {
+        meta = `Active now — until ${fmtDateTime(p.expires)}`;
+      } else {
+        meta = 'Active now';
+      }
+      const item = document.createElement('div');
+      item.className = 'severe-item ' + sevClass;
+      item.innerHTML = `<span class="severe-title">${escapeHtml(p.event)}</span>${escapeHtml(p.headline || '')}<span class="severe-meta">${meta}</span>`;
+      list.appendChild(item);
+    });
+    section.classList.remove('hidden');
   } catch (e) {
     // NWS unreachable or non-US location — silently skip, not a fatal error
   }
+}
+function fmtDateTime(isoStr) {
+  const d = new Date(isoStr);
+  return d.toLocaleDateString([], { weekday: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 function severityRank(sev) {
   const order = { Extreme: 4, Severe: 3, Moderate: 2, Minor: 1, Unknown: 0 };
@@ -327,6 +347,12 @@ function applySkyBackground(cur, daily) {
   const root = document.documentElement.style;
   root.setProperty('--sky-text', isLight ? '#12202e' : '#ffffff');
   root.setProperty('--sky-text-dim', isLight ? 'rgba(18, 32, 46, 0.72)' : 'rgba(255, 255, 255, 0.8)');
+
+  // Frosted glass cards blend the sky color with ~50% white, so compute contrast against that blend.
+  const blendedRgb = avgRgb.map((c) => c * 0.5 + 255 * 0.5);
+  const isCardLight = relativeLuminance(blendedRgb) > 0.5;
+  root.setProperty('--card-text', isCardLight ? '#12202e' : '#ffffff');
+  root.setProperty('--card-text-dim', isCardLight ? 'rgba(18, 32, 46, 0.72)' : 'rgba(255, 255, 255, 0.8)');
 }
 
 function findCurrentHourIndex(timeArr) {
@@ -486,10 +512,12 @@ function renderBestTime(hourly, nowIdx) {
     rows.push({ time: hourly.time[i], score, chips });
   }
   rows.sort((a, b) => b.score - a.score);
-  rows.slice(0, 4).sort((a, b) => new Date(a.time) - new Date(b.time)).forEach((r) => {
+  const top = rows.slice(0, 4).sort((a, b) => new Date(a.time) - new Date(b.time));
+  const bestScore = Math.max(...top.map((r) => r.score));
+  top.forEach((r) => {
     const { tag, text } = scoreToLabel(r.score);
     const row = document.createElement('div');
-    row.className = 'best-time-row';
+    row.className = 'best-time-row' + (r.score === bestScore ? ' highlight' : '');
     row.innerHTML = `
       <div class="best-time-top"><span>${fmtHour(r.time)}</span><span class="tag ${tag}">${text} · ${r.score}</span></div>
       <div class="factor-chips">${chipsHtml(r.chips)}</div>`;
@@ -519,6 +547,7 @@ function renderWeekPlan(hourly) {
     (days[dayKey] = days[dayKey] || []).push(i);
   });
 
+  const dayEntries = [];
   Object.keys(days).sort().slice(0, 7).forEach((dayKey, di) => {
     let best = null;
     days[dayKey].forEach((i) => {
@@ -531,11 +560,15 @@ function renderWeekPlan(hourly) {
         best = { time: hourly.time[i], score, chips: buildFactorChips(ranges, hourly.apparent_temperature[i], hourly.relative_humidity_2m[i], hourly.wind_speed_10m[i], uv, precipPct) };
       }
     });
-    if (!best) return;
+    if (best) dayEntries.push({ dayKey, di, best });
+  });
+
+  const bestScore = Math.max(...dayEntries.map((d) => d.best.score));
+  dayEntries.forEach(({ dayKey, di, best }) => {
     const dayLabel = di === 0 ? 'Today' : new Date(dayKey + 'T12:00:00').toLocaleDateString([], { weekday: 'short', month: 'numeric', day: 'numeric' });
     const { tag } = scoreToLabel(best.score);
     const row = document.createElement('div');
-    row.className = 'week-row';
+    row.className = 'week-row' + (best.score === bestScore ? ' highlight' : '');
     row.innerHTML = `
       <div class="best-time-top"><span>${dayLabel} · ${fmtHour(best.time)}</span><span class="tag ${tag}">${best.score}</span></div>
       <div class="factor-chips">${chipsHtml(best.chips)}</div>`;
@@ -655,6 +688,18 @@ searchForm.addEventListener('submit', async (e) => {
 });
 
 geoBtn.addEventListener('click', useGeolocation);
+
+function selectPlanTab(tab) {
+  const isToday = tab === 'today';
+  el('tabToday').classList.toggle('active', isToday);
+  el('tabWeek').classList.toggle('active', !isToday);
+  el('tabToday').setAttribute('aria-selected', String(isToday));
+  el('tabWeek').setAttribute('aria-selected', String(!isToday));
+  el('panelToday').classList.toggle('hidden', !isToday);
+  el('panelWeek').classList.toggle('hidden', isToday);
+}
+el('tabToday').addEventListener('click', () => selectPlanTab('today'));
+el('tabWeek').addEventListener('click', () => selectPlanTab('week'));
 
 unitToggle.addEventListener('click', () => {
   unit = unit === 'F' ? 'C' : 'F';

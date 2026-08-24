@@ -7,7 +7,7 @@
 <title>Reading Weather</title>
 <meta name="description" content="Check current weather, precipitation, and severe weather alerts to find the best time to read outside.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📖</text></svg>">
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 <div class="app">
@@ -23,14 +23,11 @@
 
   <form id="searchForm" class="search-bar" autocomplete="off">
     <input id="searchInput" type="text" placeholder="Search city or ZIP…" aria-label="Search location">
-    <button type="submit" aria-label="Search">🔍</button>
-    <button type="button" id="geoBtn" aria-label="Use my location">📍</button>
   </form>
+  <button type="button" id="geoBtn" class="geo-btn">📍 Use Current Location</button>
   <div id="searchResults" class="search-results hidden"></div>
 
   <div id="statusMsg" class="status-msg hidden"></div>
-
-  <div id="alertBanner" class="alert-banner hidden"></div>
 
   <main id="mainContent" class="hidden">
 
@@ -77,21 +74,33 @@
 
     <section class="precip-card">
       <div class="precip-header">
-        <span>☔ Umbrella check</span>
+        <span>Umbrella check</span>
         <span id="umbrellaVerdict" class="umbrella-verdict">—</span>
       </div>
       <div class="hourly-precip" id="hourlyPrecip"></div>
     </section>
 
+    <section id="severeWeatherSection" class="severe-card hidden">
+      <div class="section-title">Severe Weather</div>
+      <div id="severeList" class="severe-list"></div>
+    </section>
+
     <section class="best-time-card">
-      <div class="section-title">🪑 Plan a Reading Session</div>
+      <div class="section-title">Plan a Reading Session</div>
 
-      <div class="section-subtitle">Today</div>
-      <div id="bestTimeList" class="best-time-list"></div>
-      <div class="model-note" id="modelNote"></div>
+      <div class="plan-tabs" role="tablist">
+        <button type="button" class="plan-tab active" id="tabToday" role="tab" aria-selected="true">Today</button>
+        <button type="button" class="plan-tab" id="tabWeek" role="tab" aria-selected="false">This Week</button>
+      </div>
 
-      <div class="section-subtitle">This Week</div>
-      <div id="weekPlanList" class="week-plan-list"></div>
+      <div id="panelToday" class="plan-panel">
+        <div id="bestTimeList" class="best-time-list"></div>
+        <div class="model-note" id="modelNote"></div>
+      </div>
+
+      <div id="panelWeek" class="plan-panel hidden">
+        <div id="weekPlanList" class="week-plan-list"></div>
+      </div>
     </section>
 
     <section class="log-card">
@@ -190,6 +199,6 @@
   </footer>
 
 </div>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>

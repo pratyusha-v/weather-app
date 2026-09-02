@@ -118,20 +118,33 @@ async function searchCity(query) {
   return data.results || [];
 }
 
+async function reverseGeocode(lat, lon) {
+  try {
+    const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
+    if (!res.ok) throw new Error('reverse geocode failed');
+    const data = await res.json();
+    const city = data.city || data.locality;
+    const region = data.principalSubdivision;
+    if (!city && !region) return null;
+    if (city && region && region !== city) return `${city}, ${region}`;
+    return city || region;
+  } catch (e) {
+    return null;
+  }
+}
+
 function useGeolocation() {
   if (!navigator.geolocation) {
     alert('Geolocation is not supported in this browser. Please search for a city instead.');
     return;
   }
+  searchResults.classList.add('hidden');
   showStatus('Getting your location…');
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
       const { latitude, longitude } = pos.coords;
-      let label = `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`;
-      try {
-        const results = await searchCity('');
-      } catch (e) { /* ignore */ }
-      setLocation({ lat: latitude, lon: longitude, label: 'My Location' });
+      const cityLabel = await reverseGeocode(latitude, longitude);
+      setLocation({ lat: latitude, lon: longitude, label: cityLabel || 'My Location' });
     },
     (err) => {
       showStatus('Location access denied or unavailable. Search for a city above.');
@@ -169,6 +182,7 @@ async function loadWeather() {
     renderWeather(data);
     hideStatus();
     mainContent.classList.remove('hidden');
+    unitToggle.classList.remove('hidden');
     loadAlerts(lat, lon);
   } catch (e) {
     showStatus('Could not load weather data. Check your connection and try again.');
@@ -655,10 +669,11 @@ function saveEntry(fields) {
 
 /* ---------- Event wiring ---------- */
 
-searchForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const q = searchInput.value.trim();
-  if (!q) return;
+async function runSearch(q) {
+  if (!q) {
+    searchResults.classList.add('hidden');
+    return;
+  }
   searchResults.innerHTML = '<button disabled>Searching…</button>';
   searchResults.classList.remove('hidden');
   try {
@@ -680,6 +695,22 @@ searchForm.addEventListener('submit', async (e) => {
   } catch (err) {
     searchResults.innerHTML = '<button disabled>Search failed — try again</button>';
   }
+}
+
+searchForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  runSearch(searchInput.value.trim());
+});
+
+let searchDebounce = null;
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.trim();
+  clearTimeout(searchDebounce);
+  if (q.length < 2) {
+    searchResults.classList.add('hidden');
+    return;
+  }
+  searchDebounce = setTimeout(() => runSearch(q), 350);
 });
 
 geoBtn.addEventListener('click', useGeolocation);
